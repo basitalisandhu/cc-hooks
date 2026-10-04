@@ -85,18 +85,18 @@ Once the package is on PyPI the short forms work too: `pipx install cc-hooks`, `
 Container image: each release tag publishes `ghcr.io/basitalisandhu/cc-hooks` for linux/amd64 and linux/arm64, tagged with the version and `latest`. The image runs as uid 1000 with `/work` as the working directory, so mount the project there:
 
 ```bash
-docker run --rm -v "$PWD:/work" ghcr.io/basitalisandhu/cc-hooks:0.1.0 test examples/fixtures --settings examples/settings.json --cwd .
+docker run --rm -v "$PWD:/work" ghcr.io/basitalisandhu/cc-hooks:0.1.1 test examples/fixtures --settings examples/settings.json --cwd .
 ```
 
-In the container, `cc-hooks test` runs your hooks with the image's `python3`, which has `cc_hooks` installed. The image contains nothing else, so a hook that calls another program (`git`, `jq`, `node`) fails there; build an image of your own that adds it (`FROM ghcr.io/basitalisandhu/cc-hooks:0.1.0`) or run cc-hooks locally. Only the project settings you pass with `--settings` or find under `/work` are visible; your user settings in `~/.claude` are not.
+In the container, `cc-hooks test` runs your hooks with the image's `python3`, which has `cc_hooks` installed. The image contains nothing else, so a hook that calls another program (`git`, `jq`, `node`) fails there; build an image of your own that adds it (`FROM ghcr.io/basitalisandhu/cc-hooks:0.1.1`) or run cc-hooks locally. Only the project settings you pass with `--settings` or find under `/work` are visible; your user settings in `~/.claude` are not.
 
 The image is signed with a keyless cosign signature and has a build provenance attestation and an SPDX SBOM (attached to the GitHub Release). To verify:
 
 ```bash
-cosign verify ghcr.io/basitalisandhu/cc-hooks:0.1.0 \
+cosign verify ghcr.io/basitalisandhu/cc-hooks:0.1.1 \
   --certificate-identity-regexp '^https://github.com/basitalisandhu/cc-hooks/\.github/workflows/publish-github-packages\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/basitalisandhu/cc-hooks:0.1.0 --repo basitalisandhu/cc-hooks
+gh attestation verify oci://ghcr.io/basitalisandhu/cc-hooks:0.1.1 --repo basitalisandhu/cc-hooks
 ```
 
 pip, once published to PyPI:

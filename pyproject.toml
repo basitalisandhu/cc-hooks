@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cc-hooks"
-version = "0.1.0"
+version = "0.1.1"
 description = "Typed Python SDK and offline test runner for Claude Code hooks: one dataclass per event, decision builders that print the documented JSON, and a CLI that explains and tests hook settings without running anything destructive."
 readme = "README.md"
 requires-python = ">=3.11"
