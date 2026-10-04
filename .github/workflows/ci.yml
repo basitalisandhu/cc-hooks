@@ -42,3 +42,23 @@ jobs:
           cc-hooks events | head -3
           printf '{"session_id":"ci","cwd":".","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"cat .env"}}' > /tmp/event.json
           cc-hooks explain /tmp/event.json --settings examples/settings.json --cwd .
+
+  container-build:
+    name: Build the container image and run it
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the image, print --help and replay example fixtures from a mount
+        run: |
+          docker build --build-arg VERSION=ci -t cc-hooks:ci .
+          docker run --rm cc-hooks:ci --help > help.txt && grep "^usage: cc-hooks" help.txt
+          docker run --rm cc-hooks:ci --version
+          test "$(docker run --rm --entrypoint id cc-hooks:ci -u)" = "1000"
+          docker run --rm -v "$PWD:/work:ro" cc-hooks:ci events --markdown | diff - docs/events.md
+          # session-start.json is left out: its hook calls git, which the image does not contain.
+          docker run --rm -v "$PWD:/work:ro" cc-hooks:ci test \
+            examples/fixtures/allow-ls.json examples/fixtures/deny-cat-env.json \
+            examples/fixtures/edit-not-matched.json examples/fixtures/post-tool-use.json \
+            --settings examples/settings.json --cwd .
