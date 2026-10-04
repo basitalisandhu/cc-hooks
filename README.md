@@ -82,6 +82,29 @@ git clone https://github.com/basitalisandhu/cc-hooks && cd cc-hooks && uv venv &
 
 Once the package is on PyPI the short forms work too: `pipx install cc-hooks`, `uvx cc-hooks events`, `pip install cc-hooks`.
 
+Container image: each release tag publishes `ghcr.io/basitalisandhu/cc-hooks` for linux/amd64 and linux/arm64, tagged with the version and `latest`. The image runs as uid 1000 with `/work` as the working directory, so mount the project there:
+
+```bash
+docker run --rm -v "$PWD:/work" ghcr.io/basitalisandhu/cc-hooks:0.1.0 test examples/fixtures --settings examples/settings.json --cwd .
+```
+
+In the container, `cc-hooks test` runs your hooks with the image's `python3`, which has `cc_hooks` installed. The image contains nothing else, so a hook that calls another program (`git`, `jq`, `node`) fails there; build an image of your own that adds it (`FROM ghcr.io/basitalisandhu/cc-hooks:0.1.0`) or run cc-hooks locally. Only the project settings you pass with `--settings` or find under `/work` are visible; your user settings in `~/.claude` are not.
+
+The image is signed with a keyless cosign signature and has a build provenance attestation and an SPDX SBOM (attached to the GitHub Release). To verify:
+
+```bash
+cosign verify ghcr.io/basitalisandhu/cc-hooks:0.1.0 \
+  --certificate-identity-regexp '^https://github.com/basitalisandhu/cc-hooks/\.github/workflows/publish-github-packages\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/basitalisandhu/cc-hooks:0.1.0 --repo basitalisandhu/cc-hooks
+```
+
+pip, once published to PyPI:
+
+```bash
+pip install cc-hooks
+```
+
 Two things get installed and they live in different places. The `cc-hooks` command is what pipx or uvx gives you. A hook script that does `from cc_hooks import ...` runs under whatever interpreter your settings name (`python3` in the examples), so that interpreter needs the library: `python3 -m pip install cc-hooks`, or run the hook with `uv run --with cc-hooks hook.py`, or point `command` at a virtualenv's python. There are no runtime dependencies, so a plain `pip install` adds exactly one package.
 
 ## Writing a hook
