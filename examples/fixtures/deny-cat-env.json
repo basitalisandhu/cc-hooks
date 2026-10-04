@@ -1,0 +1,13 @@
+{
+  "event": {
+    "session_id": "abc123",
+    "transcript_path": "/home/user/.claude/projects/demo/abc123.jsonl",
+    "cwd": "/home/user/demo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {"command": "cat .env", "description": "Show the environment file"},
+    "tool_use_id": "toolu_01DENY"
+  },
+  "expect": {"decision": "deny", "reason_contains": "secrets", "handlers": 1}
+}

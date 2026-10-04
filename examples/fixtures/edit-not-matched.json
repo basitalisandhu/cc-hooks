@@ -1,0 +1,13 @@
+{
+  "event": {
+    "session_id": "abc123",
+    "transcript_path": "/home/user/.claude/projects/demo/abc123.jsonl",
+    "cwd": "/home/user/demo",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Edit",
+    "tool_input": {"file_path": "/home/user/demo/.env", "old_string": "a", "new_string": "b"},
+    "tool_use_id": "toolu_01EDIT"
+  },
+  "expect": {"decision": "none", "handlers": 0}
+}

@@ -1,0 +1,15 @@
+{
+  "event": {
+    "session_id": "abc123",
+    "transcript_path": "/home/user/.claude/projects/demo/abc123.jsonl",
+    "cwd": "/home/user/demo",
+    "permission_mode": "default",
+    "hook_event_name": "PostToolUse",
+    "tool_name": "Write",
+    "tool_input": {"file_path": "/home/user/demo/notes.md", "content": "hello"},
+    "tool_response": {"filePath": "/home/user/demo/notes.md", "type": "create"},
+    "tool_use_id": "toolu_01WRITE",
+    "duration_ms": 12
+  },
+  "expect": {"decision": "none", "handlers": 1}
+}
