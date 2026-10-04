@@ -282,7 +282,7 @@ Issues and pull requests are welcome; the most useful ones are docs drift report
 
 ## Sibling projects
 
-- [hisar](https://github.com/basitalisandhu/hisar): open-source trust infrastructure for AI agents: who they are, what they may touch, and proof of what they did.
+- [masoon](https://github.com/basitalisandhu/masoon): open-source trust infrastructure for AI agents: who they are, what they may touch, and proof of what they did.
 - [agent-security-skills](https://github.com/basitalisandhu/agent-security-skills): Claude Code plugin and skill pack for agent security reviews, with guard hooks for `Bash` written as plain scripts of the kind this library replaces.
 - [claude-dev-skills](https://github.com/basitalisandhu/claude-dev-skills): Claude Code skills from the same maintainer.
 
