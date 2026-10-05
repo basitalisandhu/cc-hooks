@@ -240,6 +240,28 @@ def test_if_rules_follow_the_bash_matching_table(rule, command, expected):
     assert if_matches(rule, bash) is expected
 
 
+@pytest.mark.parametrize(
+    "rule, expected",
+    [
+        ("Edit(src/**)", True),
+        ("Edit(*.ts)", True),
+        ("Edit(*.py)", False),
+        ("Edit(other/**)", False),
+        ("Write(*.ts)", False),
+    ],
+)
+def test_if_rules_for_windows_file_paths(rule, expected):
+    edit = parse_event(
+        event(
+            "PreToolUse",
+            tool_name="Edit",
+            cwd=r"C:\project",
+            tool_input={"file_path": r"C:\project\src\index.ts"},
+        )
+    )
+    assert if_matches(rule, edit) is expected
+
+
 def test_if_rules_for_file_tools_and_domains():
     edit = parse_event(
         event(

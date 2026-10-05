@@ -197,6 +197,20 @@ def test_matcher_value_special_cases():
     assert stop.matcher_value is None and stop.spec.matcher_field is None
 
 
+@pytest.mark.parametrize(
+    "path, expected",
+    [
+        (r"C:\project\src\.envrc", ".envrc"),
+        (r"\\server\share\config.json", "config.json"),
+        ("/home/user/demo/.envrc", ".envrc"),
+        ("src/config.json", "config.json"),
+    ],
+)
+def test_file_changed_basename_is_cross_platform(path, expected):
+    changed = parse_event(event("FileChanged", file_path=path, event="change"))
+    assert changed.matcher_value == expected
+
+
 def test_in_subagent_flag():
     assert not parse_event(event("Stop")).in_subagent
     assert parse_event(event("Stop", agent_id="agent-1", agent_type="Explore")).in_subagent

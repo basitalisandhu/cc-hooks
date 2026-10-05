@@ -631,7 +631,11 @@ def if_matches(rule: str, event: Event) -> bool | None:
     candidates = [path.replace("\\", "/")]
     if isinstance(event.cwd, str):
         with contextlib.suppress(ValueError):
-            candidates.append(str(Path(path).relative_to(event.cwd)).replace("\\", "/"))
+            candidates.append(
+                str(
+                    Path(path.replace("\\", "/")).relative_to(event.cwd.replace("\\", "/"))
+                ).replace("\\", "/")
+            )
     expanded = os.path.expanduser(pattern)
     return any(
         fnmatch.fnmatchcase(c, expanded) or fnmatch.fnmatchcase(c, pattern) for c in candidates
