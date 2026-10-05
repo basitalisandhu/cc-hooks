@@ -20,6 +20,7 @@ Use ``read_event()`` at the top of a hook script and dispatch on the returned ty
 from __future__ import annotations
 
 import json
+import ntpath
 import os
 import sys
 from dataclasses import dataclass, field
@@ -1226,7 +1227,10 @@ class Event:
             return None
         if matcher_field == "file_basename":
             path = getattr(self, "file_path", None)
-            return os.path.basename(path) if isinstance(path, str) else None
+            if not isinstance(path, str):
+                return None
+            basename = ntpath.basename if "\\" in path and "/" not in path else os.path.basename
+            return basename(path)
         value = getattr(self, matcher_field, None)
         if matcher_field == "to_model" and isinstance(value, str):
             return value.removesuffix("[1m]").strip()
