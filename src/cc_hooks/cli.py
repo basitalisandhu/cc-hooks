@@ -832,13 +832,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--append", nargs="?", const="", metavar="FILE", help="(the hook) append stdin"
     )
     group.add_argument("--to", metavar="DIR", help="convert recorded payloads into fixtures")
-    p_record.add_argument("--scope", choices=("user", "project", "local"), default="local")
+    p_record.add_argument(
+        "--scope",
+        choices=("user", "project", "local"),
+        default="local",
+        help="which settings file to edit (default: local, .claude/settings.local.json)",
+    )
     p_record.add_argument("--file", help="settings file to edit (overrides --scope)")
     p_record.add_argument("--events", default=",".join(RECORD_EVENTS), help="events to record")
     p_record.add_argument("--record-file", help=f"where payloads go ({DEFAULT_RECORD_FILE})")
     p_record.add_argument("--from", dest="from_file", help="recorded file to convert")
-    p_record.add_argument("--cwd")
-    p_record.add_argument("--home")
+    p_record.add_argument("--cwd", help="project directory (default: the current directory)")
+    p_record.add_argument("--home", help="home directory holding .claude/ (default: your home)")
     p_record.set_defaults(func=cmd_record)
     return parser
 

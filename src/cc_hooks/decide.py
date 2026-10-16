@@ -526,6 +526,29 @@ def _blocking_reason(event: str, payload: dict[str, Any] | None) -> str | None:
     return None
 
 
+MISSING_LIBRARY_HINT = (
+    "the interpreter that runs this hook cannot import cc_hooks; install the library for it "
+    "(python3 -m pip install git+https://github.com/basitalisandhu/cc-hooks), or point "
+    "the handler's command at a virtualenv's python"
+)
+
+
+def stderr_summary(stderr: str) -> str:
+    """The most useful line of a failed hook's stderr.
+
+    A Python traceback starts with "Traceback (most recent call last):" and ends with the
+    exception, so for a traceback the last line is returned. When the exception is that
+    cc_hooks cannot be imported, a hint on how to install it is appended.
+    """
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    line = lines[-1] if lines[0].startswith("Traceback (most recent call last)") else lines[0]
+    if line.startswith("ModuleNotFoundError") and "'cc_hooks'" in line:
+        line += "; " + MISSING_LIBRARY_HINT
+    return line
+
+
 def observe(event: str, stdout: str, exit_code: int, stderr: str = "") -> Observed:
     """Apply the documented exit-code and stdout rules to one hook run."""
     text = stdout.strip()
@@ -598,10 +621,10 @@ def observe(event: str, stdout: str, exit_code: int, stderr: str = "") -> Observ
         note = f"stdout looks like JSON but does not parse ({parse_error}); non-blocking error"
     elif exit_code not in (0, 2):
         kind = "error"
-        first = stderr.strip().splitlines()[0] if stderr.strip() else ""
         note = f"exit {exit_code} with no JSON decision: non-blocking error, the action proceeds"
-        if first:
-            note += f" (stderr: {first})"
+        summary = stderr_summary(stderr)
+        if summary:
+            note += f" (stderr: {summary})"
     elif text and event in PLAIN_TEXT_CONTEXT_EVENTS:
         kind = "context"
         context.append(text)

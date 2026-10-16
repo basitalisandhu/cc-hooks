@@ -28,7 +28,10 @@ Install the CLI and the library, write a hook, register it, and ask what would h
 
 ```bash
 pipx install git+https://github.com/basitalisandhu/cc-hooks   # the cc-hooks command (see "Install" for the library side)
+python3 -m pip install git+https://github.com/basitalisandhu/cc-hooks   # the library, for the python3 that runs your hooks
 ```
+
+pipx keeps the library to itself, so the second line matters: a hook run by a `python3` without `cc_hooks` exits 1 with an import error, which Claude Code treats as a non-blocking error and lets the tool call through. `cc-hooks test` reports that case with an install hint.
 
 `.claude/hooks/deny_env.py`, ten lines, denies `cat .env` and leaves everything else to the normal permission flow ([examples/minimal.py](examples/minimal.py)):
 

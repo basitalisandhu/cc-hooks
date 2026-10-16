@@ -6,7 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- `cc-hooks test` now shows the exception line of a hook's Python traceback instead of its first line, and when the hook cannot import `cc_hooks` it says how to install the library for the interpreter that runs it.
+- `cc-hooks record --help` describes `--scope`, `--cwd` and `--home`.
+- The README demo installs the library as well as the command, and says what happens when a hook's interpreter lacks it.
 
 ## [0.1.1] - 2026-10-06
 

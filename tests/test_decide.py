@@ -292,3 +292,29 @@ def test_decision_is_a_plain_frozen_record():
     assert decision.to_dict() == {} and decision.to_json() == "{}"
     with pytest.raises(AttributeError):
         decision.kind = "deny"  # type: ignore[misc]
+
+
+def test_error_note_shows_the_exception_of_a_traceback():
+    stderr = (
+        'Traceback (most recent call last):\n  File "hook.py", line 3, in <module>\n'
+        "    x = 1 / 0\nZeroDivisionError: division by zero\n"
+    )
+    seen = observe("PreToolUse", "", 1, stderr)
+    assert seen.kind == "error"
+    assert "ZeroDivisionError: division by zero" in (seen.note or "")
+    assert "Traceback" not in (seen.note or "")
+
+
+def test_error_note_explains_a_missing_library():
+    stderr = (
+        'Traceback (most recent call last):\n  File "hook.py", line 2, in <module>\n'
+        "    from cc_hooks import read_event\nModuleNotFoundError: No module named 'cc_hooks'\n"
+    )
+    seen = observe("PreToolUse", "", 1, stderr)
+    assert "No module named 'cc_hooks'" in (seen.note or "")
+    assert "pip install git+https://github.com/basitalisandhu/cc-hooks" in (seen.note or "")
+
+
+def test_error_note_keeps_the_first_line_of_plain_stderr():
+    seen = observe("PreToolUse", "", 1, "config missing\nsecond line\n")
+    assert "(stderr: config missing)" in (seen.note or "")
