@@ -6,17 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.2] - 2026-10-16
+
 ### Changed
 
 - `cc-hooks test` now shows the exception line of a hook's Python traceback instead of its first line, and when the hook cannot import `cc_hooks` it says how to install the library for the interpreter that runs it.
 - `cc-hooks record --help` describes `--scope`, `--cwd` and `--home`.
 - The README demo installs the library as well as the command, and says what happens when a hook's interpreter lacks it.
+- CI and release workflows use actions/checkout 7, actions/setup-python 7, actions/upload-artifact 7 and actions/download-artifact 8.
 
 ## [0.1.1] - 2026-10-06
 
 ### Changed
 
 - Removed the umbrella branding; this project stands alone and links its sibling repositories directly.
+
+### Fixed
+
+- Hook paths written with Windows separators now match across platforms (#10, thanks @nawaaaaaAaar).
 
 ## [0.1.0] - 2026-10-04
 
@@ -33,6 +42,7 @@ All notable changes to this project are documented here. The format follows
 
 - Renamed the umbrella project from Hisar to Masoon; links, names and identifiers updated.
 
-[Unreleased]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/basitalisandhu/cc-hooks/releases/tag/v0.1.0
