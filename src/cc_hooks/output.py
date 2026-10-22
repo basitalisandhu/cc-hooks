@@ -169,12 +169,12 @@ def validate_output(event: str, value: Any) -> list[str]:
 
 
 def stdout_warnings(event: str, stdout: str, exit_code: int) -> list[str]:
-    """Replay accepts plain text; only successful JSON-like output is validated."""
+    """Replay accepts plain text and honours parsed JSON on any exit code."""
     text = stdout.strip()
-    if exit_code != 0 or not text or text[0] not in "{[":
+    if not text or text[0] not in "{[":
         return []
     try:
         value = json.loads(text)
     except ValueError:
-        return ["$: output looks like JSON but cannot be parsed"]
+        return ["$: output looks like JSON but cannot be parsed"] if exit_code == 0 else []
     return validate_output(event, value)

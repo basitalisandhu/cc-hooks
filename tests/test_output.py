@@ -5,7 +5,7 @@ import pytest
 
 from cc_hooks.cli import main
 from cc_hooks.events import EVENTS
-from cc_hooks.output import OUTPUT_FIELDS, validate_output
+from cc_hooks.output import OUTPUT_FIELDS, stdout_warnings, validate_output
 
 from .conftest import event, write_json
 from .test_decide import ROUND_TRIPS
@@ -26,6 +26,13 @@ def test_registry_covers_every_event_and_each_documented_field():
                 else "hookSpecificOutput." + field
             )
             assert path in OUTPUT_FIELDS[name], (name, path)
+
+
+def test_replay_validates_json_on_nonzero_exit_without_reclassifying_plain_text():
+    assert stdout_warnings("PreToolUse", '{"permissionDecision":"deny"}', 2)
+    assert stdout_warnings("PreToolUse", "plain stderr-style message", 0) == []
+    assert stdout_warnings("PreToolUse", "{", 2) == []
+    assert stdout_warnings("PreToolUse", "{", 0)
 
 
 @pytest.mark.parametrize("value", [[], None, True, 1, "deny"])

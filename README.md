@@ -28,9 +28,10 @@ tool outputs are recognized but their tool-specific schemas are not validated;
 elicitation form properties and permission-update entries are not deeply validated.
 This is an offline documentation check, not runtime emulation.
 
-The replay command in this repository is `cc-hooks test`: successful JSON-like
+The replay command in this repository is `cc-hooks test`: JSON-like
 stdout receives the same warnings, shown beside the handler and included in
-the fixture's `output_warnings` JSON report. Plain text and nonzero exit-code
+the fixture's `output_warnings` JSON report. Parsed JSON is checked on every exit code;
+plain text and nonzero exit-code
 semantics are unchanged. Warnings never alter replay verdicts or expectations.
 
 ## Why
