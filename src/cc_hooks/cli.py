@@ -9,7 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,7 @@ from .events import (
     HookInputError,
     parse_event,
 )
+from .output import stdout_warnings, validate_output
 from .settings import Collection, Resolved, SettingsError, collect, resolve
 
 DEFAULT_RECORD_FILE = Path("~/.cc-hooks/recorded.jsonl")
@@ -368,6 +369,7 @@ class HandlerRun:
     exit_code: int | None = None
     stdout: str = ""
     stderr: str = ""
+    output_warnings: list[str] = field(default_factory=list)
 
 
 def _load_fixtures(paths: list[str]) -> tuple[list[Fixture], list[str]]:
@@ -457,7 +459,8 @@ def _run_handler(
             return HandlerRun(item, Observed("deny", note=note), executed=True)
         return HandlerRun(item, Observed("timeout", note=note), executed=True)
     observed = observe(event.hook_event_name, proc.stdout, proc.returncode, proc.stderr)
-    return HandlerRun(item, observed, True, proc.returncode, proc.stdout, proc.stderr)
+    warnings = stdout_warnings(event.hook_event_name, proc.stdout, proc.returncode)
+    return HandlerRun(item, observed, True, proc.returncode, proc.stdout, proc.stderr, warnings)
 
 
 def _check_expectation(
@@ -485,6 +488,24 @@ def _check_expectation(
         if int(expect["exit_code"]) not in codes:
             failures.append(f"no handler exited {expect['exit_code']} (got {codes})")
     return failures
+
+
+def cmd_validate_output(args: argparse.Namespace) -> int:
+    try:
+        warnings = validate_output(args.event, _load_payload(args.file))
+    except (ValueError, OSError) as exc:
+        print(f"cc-hooks: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(
+            json.dumps({"event": args.event, "valid": not warnings, "warnings": warnings}, indent=2)
+        )
+    elif warnings:
+        for warning in warnings:
+            print(f"warning: {warning}")
+    else:
+        print(f"valid output for {args.event}")
+    return 1 if warnings else 0
 
 
 def cmd_test(args: argparse.Namespace) -> int:
@@ -563,6 +584,8 @@ def cmd_test(args: argparse.Namespace) -> int:
             print(f"      {index}. [{h.source.label}] {_short(h.resolved_command, 56)}: {detail}")
             if args.verbose and run.stderr.strip():
                 print("         stderr: " + _short(run.stderr, 70))
+            for warning in run.output_warnings:
+                print(f"         output warning: {warning}")
         results.append(
             {
                 "fixture": str(fixture.path),
@@ -572,6 +595,7 @@ def cmd_test(args: argparse.Namespace) -> int:
                 "reason": combined.reason,
                 "handlers": len(runs),
                 "failures": failures,
+                "output_warnings": [warning for run in runs for warning in run.output_warnings],
             }
         )
     passed = sum(1 for r in results if r["status"] == "PASS")
@@ -855,6 +879,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"cc-hooks {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+    validate = sub.add_parser("validate-output", help="check documented event-specific hook JSON")
+    validate.add_argument("event", choices=EVENTS)
+    validate.add_argument("file", nargs="?", default="-", help="JSON response file, or - for stdin")
+    validate.add_argument("--json", action="store_true", help="emit structured diagnostics")
+    validate.set_defaults(func=cmd_validate_output)
 
     p_events = sub.add_parser("events", help="list the documented hook events")
     p_events.add_argument(

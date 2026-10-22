@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - Recorded-fixture conversion deduplicates event/tool/input identities by default, supports repeatable `--event`/`--tool` filters and timezone-aware `--since`, preserves sparse fixture numbering and offers `--keep-duplicates` (#8).
+- `cc-hooks validate FILE --event NAME` checks event-specific output fields, placement, types, enums and documented ignored combinations. Replay (`cc-hooks test`) prints the same advisory warnings, includes them in JSON reports without changing verdicts, and counts them as failures when `expect.strict_output` is true (#6).
 
 ## [0.1.2] - 2026-10-16
 

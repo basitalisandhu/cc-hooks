@@ -6,6 +6,33 @@ One frozen dataclass per documented hook event, decision builders that print exa
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
+## Validate hook output
+
+```sh
+cc-hooks validate-output PreToolUse response.json
+printf '%s' '{"permissionDecision":"deny"}' | cc-hooks validate-output PreToolUse - --json
+```
+
+`validate-output` distinguishes JSON that parses from a documented event response.
+It checks field placement, JSON types, decision enums, event-name mismatches, missing
+block reasons and known ignored combinations. Exit codes are 0 for no warnings,
+1 for advisory warnings and 2 for malformed JSON or a read error. `--json` emits
+`{event, valid, warnings}`. Here, `valid` means no registry warnings, not a guarantee
+that Claude Code will apply the response.
+
+The exported `OUTPUT_FIELDS` registry covers all events in `events.py`, with
+`OutputField` type/enum metadata. Its scope follows the
+[official hooks reference](https://code.claude.com/docs/en/hooks), checked on
+2026-10-22. Unknown extension fields are warnings, not fatal errors. Replacement
+tool outputs are recognized but their tool-specific schemas are not validated;
+elicitation form properties and permission-update entries are not deeply validated.
+This is an offline documentation check, not runtime emulation.
+
+The replay command in this repository is `cc-hooks test`: successful JSON-like
+stdout receives the same warnings, shown beside the handler and included in
+the fixture's `output_warnings` JSON report. Plain text and nonzero exit-code
+semantics are unchanged. Warnings never alter replay verdicts or expectations.
+
 ## Why
 
 A Claude Code hook is a program that reads a JSON payload on stdin and answers with JSON on stdout or an exit code. The [hooks reference](https://code.claude.com/docs/en/hooks) lists 33 events (as read on 2026-10-03), each with its own input fields, its own decision shape (`hookSpecificOutput.permissionDecision` on `PreToolUse`, a top-level `decision: "block"` on `Stop`, `decision.behavior` on `PermissionRequest`, nothing at all on `Notification`) and its own answer to "what does exit code 2 do". Most hooks in the wild parse that payload by hand with `json.load(sys.stdin)` and copy the output shape from an example, which is how a hook ends up printing `additionalContext` at the top level where Claude Code silently ignores it, or exiting 1 to block when only exit 2 blocks.

@@ -87,6 +87,7 @@ from .events import (
     parse_event,
     read_event,
 )
+from .output import OUTPUT_FIELDS, OutputField, validate_output
 
 __version__ = "0.1.2"
 
@@ -97,6 +98,7 @@ __all__ = [
     "EVENTS",
     "EVENT_CLASSES",
     "EVENT_NAMES",
+    "OUTPUT_FIELDS",
     "SCHEMA_VERSION",
     "TOOL_EVENTS",
     "TOOL_INPUT_FIELDS",
@@ -115,6 +117,7 @@ __all__ = [
     "InstructionsLoaded",
     "MessageDisplay",
     "Notification",
+    "OutputField",
     "PermissionDenied",
     "PermissionRequest",
     "PostCompact",
@@ -161,5 +164,6 @@ __all__ = [
     "system_message",
     "update_input",
     "update_output",
+    "validate_output",
     "watch_paths",
 ]
