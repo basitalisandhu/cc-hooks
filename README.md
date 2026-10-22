@@ -219,6 +219,25 @@ Dry run is a contract between the runner and your hooks, not a sandbox: a hook t
 
 ### `cc-hooks record`
 
+When converting recordings, repeated `(hook_event_name, tool_name, tool_input)`
+payloads are skipped by default, ignoring responses, session IDs, paths and
+timestamps outside `tool_input`. Object key ordering does not affect identity.
+Already-converted fixtures are included in the duplicate check, so repeating a
+conversion does not append the same cases. Use `--keep-duplicates` to retain them.
+
+```sh
+cc-hooks record --to fixtures/ --from recorded.jsonl \
+  --event PostToolUse --tool Bash --since 2026-10-01T00:00:00Z
+```
+
+Repeat `--event` or `--tool` to accept any listed value; categories combine with AND.
+`--since` includes the boundary and requires a timezone-aware ISO 8601 timestamp.
+When it is set, recordings with missing or invalid timestamps are filtered out.
+Filtering happens before deduplication, so an older occurrence cannot hide a
+matching later one. Conversion reports duplicate/filtered skip counts and continues
+numbering after the highest existing numeric prefix, without overwriting fixtures.
+These options require `--to`; they do not change what the installed recorder captures.
+
 ```text
 $ cc-hooks record --install
 installed record handler on PreToolUse, PostToolUse in .claude/settings.local.json (2 added)

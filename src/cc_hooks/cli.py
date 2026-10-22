@@ -626,6 +626,11 @@ def _settings_target(args: argparse.Namespace) -> Path:
 
 
 def cmd_record(args: argparse.Namespace) -> int:
+    if not args.to and (
+        args.keep_duplicates or args.filter_events or args.filter_tools or args.since is not None
+    ):
+        print("cc-hooks record: conversion filters require --to DIR", file=sys.stderr)
+        return 2
     if args.append is not None:
         return _record_append(args.append)
     if args.to:
@@ -724,7 +729,36 @@ def _record_append(path_text: str) -> int:
     return 0
 
 
+def _record_time(value: Any) -> dt.datetime:
+    if not isinstance(value, str):
+        raise ValueError("expected an ISO 8601 timestamp with a timezone")
+    result = dt.datetime.fromisoformat(value)
+    if result.tzinfo is None or result.utcoffset() is None:
+        raise ValueError("expected an ISO 8601 timestamp with a timezone")
+    return result.astimezone(dt.UTC)
+
+
+def _record_key(payload: dict[str, Any]) -> str:
+    return json.dumps(
+        [payload.get("hook_event_name"), payload.get("tool_name"), payload.get("tool_input")],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
 def _record_to(args: argparse.Namespace) -> int:
+    try:
+        return _convert_recordings(args)
+    except (OSError, ValueError) as exc:
+        print(f"cc-hooks record: {exc}", file=sys.stderr)
+        return 2
+
+
+def _convert_recordings(args: argparse.Namespace) -> int:
+    try:
+        since = _record_time(args.since) if args.since is not None else None
+    except ValueError as exc:
+        raise ValueError(f"invalid --since: {exc}") from exc
     source = (
         Path(args.from_file).expanduser() if args.from_file else DEFAULT_RECORD_FILE.expanduser()
     )
@@ -735,7 +769,23 @@ def _record_to(args: argparse.Namespace) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     skipped = 0
-    existing = len(list(out_dir.glob("*.json")))
+    duplicates = 0
+    filtered = 0
+    seen: set[str] = set()
+    next_index = 1
+    for path in out_dir.glob("*.json"):
+        prefix, dash, _ = path.name.partition("-")
+        if dash and prefix.isdigit():
+            next_index = max(next_index, int(prefix) + 1)
+        if args.keep_duplicates:
+            continue
+        try:
+            fixture = json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        payload = fixture.get("event") if isinstance(fixture, dict) else None
+        if isinstance(payload, dict) and isinstance(payload.get("hook_event_name"), str):
+            seen.add(_record_key(payload))
     for line in source.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -748,21 +798,48 @@ def _record_to(args: argparse.Namespace) -> int:
         if not isinstance(payload, dict) or not isinstance(payload.get("hook_event_name"), str):
             skipped += 1
             continue
+        keep = (not args.filter_events or payload["hook_event_name"] in args.filter_events) and (
+            not args.filter_tools or payload.get("tool_name") in args.filter_tools
+        )
+        if since is not None:
+            try:
+                keep = keep and _record_time(entry.get("recorded_at")) >= since
+            except ValueError:
+                keep = False
+        if not keep:
+            skipped += 1
+            filtered += 1
+            continue
+        key = _record_key(payload)
+        if not args.keep_duplicates and key in seen:
+            skipped += 1
+            duplicates += 1
+            continue
+        seen.add(key)
         name = payload["hook_event_name"]
         tool = payload.get("tool_name")
         suffix = f"-{tool}" if isinstance(tool, str) else ""
         safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in f"{name}{suffix}")
-        index = existing + written + 1
-        target = out_dir / f"{index:03d}-{safe}.json"
         fixture = {
             "event": payload,
             "expect": {"decision": "none"},
             "recorded_at": entry.get("recorded_at"),
             "note": "Edit expect.decision to what your hooks should return for this payload.",
         }
-        target.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
+        while True:
+            target = out_dir / f"{next_index:03d}-{safe}.json"
+            next_index += 1
+            try:
+                with target.open("x", encoding="utf-8") as output:
+                    output.write(json.dumps(fixture, indent=2) + "\n")
+                break
+            except FileExistsError:
+                continue
         written += 1
-    print(f"wrote {written} fixture(s) to {out_dir}" + (f", skipped {skipped}" if skipped else ""))
+    detail = (
+        f", skipped {skipped} (duplicates {duplicates}, filtered {filtered})" if skipped else ""
+    )
+    print(f"wrote {written} fixture(s) to {out_dir}" + detail)
     return 0
 
 
@@ -842,6 +919,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_record.add_argument("--events", default=",".join(RECORD_EVENTS), help="events to record")
     p_record.add_argument("--record-file", help=f"where payloads go ({DEFAULT_RECORD_FILE})")
     p_record.add_argument("--from", dest="from_file", help="recorded file to convert")
+    p_record.add_argument(
+        "--keep-duplicates", action="store_true", help="keep repeated event/tool/input payloads"
+    )
+    p_record.add_argument(
+        "--event",
+        dest="filter_events",
+        action="append",
+        choices=EVENTS,
+        help="keep this event in --to (repeatable)",
+    )
+    p_record.add_argument(
+        "--tool", dest="filter_tools", action="append", help="keep this tool in --to (repeatable)"
+    )
+    p_record.add_argument(
+        "--since", help="keep recordings at/after this timezone-aware ISO 8601 time"
+    )
     p_record.add_argument("--cwd", help="project directory (default: the current directory)")
     p_record.add_argument("--home", help="home directory holding .claude/ (default: your home)")
     p_record.set_defaults(func=cmd_record)

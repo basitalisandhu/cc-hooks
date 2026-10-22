@@ -357,6 +357,106 @@ def test_record_to_without_recordings(tmp_path: Path, capsys):
     assert code == 1 and "nothing recorded" in out
 
 
+def _recordings(tmp_path, rows):
+    source = tmp_path / "recordings.jsonl"
+    source.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    return source
+
+
+def _recorded(name="PostToolUse", tool="Bash", command="ls", time="2026-10-01T00:00:00Z"):
+    return {
+        "recorded_at": time,
+        "event": {"hook_event_name": name, "tool_name": tool, "tool_input": {"command": command}},
+    }
+
+
+def test_record_to_deduplicates_payload_identity_and_repeat_conversion(tmp_path, capsys):
+    first = _recorded()
+    duplicate = _recorded(time="2026-10-02T00:00:00Z")
+    first["event"]["tool_input"] = {"command": "ls", "timeout": 1}
+    duplicate["event"]["tool_input"] = {"timeout": 1, "command": "ls"}
+    duplicate["event"].update(session_id="other", cwd="/elsewhere", tool_response="changed")
+    source = _recordings(tmp_path, [first, duplicate, _recorded(command="pwd")])
+    output = tmp_path / "fixtures"
+    args = ["record", "--to", str(output), "--from", str(source)]
+    code, text = run(capsys, *args)
+    assert code == 0 and "wrote 2 fixture(s)" in text and "duplicates 1" in text
+    originals = {p.name: p.read_bytes() for p in output.iterdir()}
+    code, text = run(capsys, *args)
+    assert code == 0 and "wrote 0 fixture(s)" in text and "duplicates 3" in text
+    assert {p.name: p.read_bytes() for p in output.iterdir()} == originals
+    code, text = run(capsys, *args, "--keep-duplicates")
+    assert code == 0 and "wrote 3 fixture(s)" in text
+    assert len(list(output.glob("*.json"))) == 5
+
+
+@pytest.mark.parametrize(
+    "flags,expected",
+    [
+        (["--event", "PreToolUse"], ["PreToolUse-Bash"]),
+        (["--tool", "Read"], ["PostToolUse-Read"]),
+        (
+            ["--event", "PreToolUse", "--event", "PostToolUse", "--tool", "Bash", "--tool", "Read"],
+            [
+                "PostToolUse-Bash",
+                "PreToolUse-Bash",
+                "PostToolUse-Read",
+            ],
+        ),
+        (["--since", "2026-10-01T00:00:00Z"], ["PreToolUse-Bash", "PostToolUse-Read"]),
+        (
+            ["--event", "PostToolUse", "--tool", "Read", "--since", "2026-10-01T00:00:00Z"],
+            ["PostToolUse-Read"],
+        ),
+    ],
+)
+def test_record_to_filters(tmp_path, capsys, flags, expected):
+    rows = [
+        _recorded(time="2026-09-30T23:59:59Z"),
+        _recorded(name="PreToolUse"),
+        _recorded(tool="Read", time="2026-10-01T03:00:00+02:00"),
+    ]
+    source = _recordings(tmp_path, rows)
+    output = tmp_path / "fixtures"
+    code, text = run(capsys, "record", "--to", str(output), "--from", str(source), *flags)
+    assert code == 0, text
+    assert [p.stem.split("-", 1)[1] for p in sorted(output.iterdir())] == expected
+
+
+def test_record_to_since_filters_before_dedup_and_rejects_invalid_dates(tmp_path, capsys):
+    source = _recordings(
+        tmp_path,
+        [
+            _recorded(time="2026-09-30T23:59:59Z"),
+            _recorded(),
+            _recorded(command="missing", time=None),
+            _recorded(command="bad", time="bad"),
+        ],
+    )
+    output = tmp_path / "fixtures"
+    args = ["record", "--to", str(output), "--from", str(source)]
+    code, text = run(capsys, *args, "--since", "2026-10-01T00:00:00Z")
+    assert code == 0 and "wrote 1 fixture(s)" in text and "filtered 3" in text
+    for date in ("bad", "2026-10-01T00:00:00"):
+        assert main([*args, "--since", date]) == 2
+    assert (
+        main(["record", "--install", "--keep-duplicates", "--file", str(tmp_path / "settings")])
+        == 2
+    )
+
+
+def test_record_to_sparse_numbering_preserves_existing_files(tmp_path, capsys):
+    output = tmp_path / "fixtures"
+    output.mkdir()
+    existing = output / "009-PostToolUse-Bash.json"
+    existing.write_text('{"hand_edited":true}', encoding="utf-8")
+    (output / "notes.json").write_text("not json", encoding="utf-8")
+    source = _recordings(tmp_path, [_recorded()])
+    assert run(capsys, "record", "--to", str(output), "--from", str(source))[0] == 0
+    assert (output / "010-PostToolUse-Bash.json").is_file()
+    assert existing.read_text() == '{"hand_edited":true}'
+
+
 def test_record_install_into_explicit_file_and_user_scope(tree: Tree, tmp_path: Path, capsys):
     explicit = tmp_path / "custom.json"
     code, out = run(capsys, "record", "--install", "--file", str(explicit), "--events", "Stop")
