@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from cc_hooks import __version__
 from cc_hooks.cli import main, render_events_markdown
 
 from .conftest import Tree, event, write_json
@@ -33,7 +34,7 @@ def test_version(capsys):
     with pytest.raises(SystemExit) as info:
         main(["--version"])
     assert info.value.code == 0
-    assert "cc-hooks 0.1.2" in capsys.readouterr().out
+    assert f"cc-hooks {__version__}" in capsys.readouterr().out
 
 
 def write_event(path: Path, **fields) -> Path:

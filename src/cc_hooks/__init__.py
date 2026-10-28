@@ -89,7 +89,7 @@ from .events import (
 )
 from .output import OUTPUT_FIELDS, OutputField, validate_output
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 
 __all__ = [
     "COMMON_FIELDS",

@@ -43,6 +43,19 @@ jobs:
           printf '{"session_id":"ci","cwd":".","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"cat .env"}}' > /tmp/event.json
           cc-hooks explain /tmp/event.json --settings examples/settings.json --cwd .
 
+  quickstart:
+    name: README quick start on a fresh install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      - name: Follow the README demo with a fresh pipx and pip install of this checkout
+        run: python3 scripts/check_readme_quickstart.py
+
   container-build:
     name: Build the container image and run it
     runs-on: ubuntu-latest

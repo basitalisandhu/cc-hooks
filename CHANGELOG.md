@@ -8,8 +8,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Recorded-fixture conversion deduplicates event/tool/input identities by default, supports repeatable `--event`/`--tool` filters and timezone-aware `--since`, preserves sparse fixture numbering and offers `--keep-duplicates` (#8).
 - `cc-hooks validate FILE --event NAME` checks event-specific output fields, placement, types, enums and documented ignored combinations. Replay (`cc-hooks test`) prints the same advisory warnings, includes them in JSON reports without changing verdicts, and counts them as failures when `expect.strict_output` is true (#6).
+
+## [0.2.0] - 2026-10-28
+
+### Added
+
+- `cc-hooks test` and `cc-hooks explain` show what an `http` handler would send: `POST <url> with headers Name: <redacted>`, with header values and any password in the URL redacted; `test` lists these handlers as "would call" instead of "would execute" (part of #5).
+- A fixture's `expect` is validated before anything runs: an unknown `decision`, a non-numeric `handlers` or `exit_code`, or a non-string `reason_contains` or `context_contains` is reported as an error for that file.
+- README: a Troubleshooting section, and a `quickstart` CI job (`scripts/check_readme_quickstart.py`) that follows the 30-second demo on a fresh pipx and pip install and checks the output it shows.
+- Property tests with seeded random payloads, settings and fixtures, and scaling tests on ten times the input.
+- Recorded-fixture conversion deduplicates event/tool/input identities by default, supports repeatable `--event`/`--tool` filters and timezone-aware `--since`, preserves sparse fixture numbering and offers `--keep-duplicates` (#8).
+
+### Fixed
+
+- A payload, settings, fixture or recording file that is not UTF-8, or is JSON nested too deeply, gives one error line naming the file instead of a traceback; `read_event()` raises `HookInputError` for deep nesting.
+- A settings entry whose `prompt`, `url`, `server` or `tool` is a JSON object or array no longer crashes de-duplication.
+- `cc-hooks record --install` no longer crashes on a settings group whose `hooks` is not a list, and `--uninstall` no longer creates a settings file that did not exist.
+- An output path in a missing directory (`--report`, `--file`) ends with `cc-hooks: cannot read or write <path>` and exit 2; any other unexpected error prints one line asking for a report.
+
+### Performance
+
+- Stripping leading `VAR=value` assignments from a Bash command for `if` rules was quadratic in their number; it is one regular-expression match now, and the parsed subcommands are cached across handlers.
 
 ## [0.1.2] - 2026-10-16
 
