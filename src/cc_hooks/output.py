@@ -171,7 +171,7 @@ def validate_output(event: str, value: Any) -> list[str]:
 def stdout_warnings(event: str, stdout: str, exit_code: int) -> list[str]:
     """Replay accepts plain text and honours parsed JSON on any exit code."""
     text = stdout.strip()
-    if not text or text[0] not in "{[":
+    if not (text.startswith("{") and text.endswith("}")):
         return []
     try:
         value = json.loads(text)

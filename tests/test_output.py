@@ -32,7 +32,11 @@ def test_replay_validates_json_on_nonzero_exit_without_reclassifying_plain_text(
     assert stdout_warnings("PreToolUse", '{"permissionDecision":"deny"}', 2)
     assert stdout_warnings("PreToolUse", "plain stderr-style message", 0) == []
     assert stdout_warnings("PreToolUse", "{", 2) == []
-    assert stdout_warnings("PreToolUse", "{", 0)
+    # the same startswith("{") and endswith("}") rule as observe(): Claude Code
+    # never parses these as JSON, so they stay plain text
+    assert stdout_warnings("PreToolUse", "{", 0) == []
+    assert stdout_warnings("PreToolUse", "[1, 2]", 0) == []
+    assert stdout_warnings("PreToolUse", "{not json}", 0)
 
 
 @pytest.mark.parametrize("value", [[], None, True, 1, "deny"])
@@ -119,18 +123,18 @@ def test_ignored_fields_and_array_item_types():
     assert any("reason" in w for w in validate_output("Stop", {"decision": "block"}))
 
 
-def test_validate_output_cli_file_stdin_and_bad_json(tmp_path, capsys, monkeypatch):
+def test_validate_cli_file_stdin_and_bad_json(tmp_path, capsys, monkeypatch):
     path = tmp_path / "response.json"
     write_json(
         path, {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny"}}
     )
-    assert main(["validate-output", "PreToolUse", str(path)]) == 0
+    assert main(["validate", str(path), "--event", "PreToolUse"]) == 0
     assert "valid" in capsys.readouterr().out
     monkeypatch.setattr("sys.stdin", io.StringIO('{"permissionDecision":"deny"}'))
-    assert main(["validate-output", "PreToolUse", "-", "--json"]) == 1
+    assert main(["validate", "-", "--event", "PreToolUse", "--json"]) == 1
     assert json.loads(capsys.readouterr().out)["warnings"]
     path.write_text("{", encoding="utf-8")
-    assert main(["validate-output", "PreToolUse", str(path)]) == 2
+    assert main(["validate", str(path), "--event", "PreToolUse"]) == 2
 
 
 def test_replay_reports_advisory_output_warnings_without_changing_verdict(tmp_path, capsys):
@@ -173,3 +177,36 @@ def test_replay_reports_advisory_output_warnings_without_changing_verdict(tmp_pa
     )
     assert "output warning:" in capsys.readouterr().out
     assert json.loads(report.read_text(encoding="utf-8"))[0]["output_warnings"]
+
+
+@pytest.mark.parametrize("strict,expected", [(True, 1), (False, 0)])
+def test_strict_output_gates_whether_warnings_fail_the_fixture(tmp_path, capsys, strict, expected):
+    fixture = tmp_path / "fixture.json"
+    write_json(
+        fixture,
+        {"event": event(), "expect": {"decision": "none", "strict_output": strict}},
+    )
+    settings = tmp_path / "settings.json"
+    write_json(
+        settings,
+        {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "printf '%s' '{\"permissionDecision\":\"deny\"}'",
+                            }
+                        ],
+                    }
+                ]
+            }
+        },
+    )
+    assert (
+        main(["test", str(fixture), "--settings", str(settings), "--cwd", str(tmp_path)])
+        == expected
+    )
+    assert "output warning:" in capsys.readouterr().out

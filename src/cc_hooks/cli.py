@@ -487,10 +487,13 @@ def _check_expectation(
         codes = [run.exit_code for run in runs if run.executed]
         if int(expect["exit_code"]) not in codes:
             failures.append(f"no handler exited {expect['exit_code']} (got {codes})")
+    if expect.get("strict_output"):
+        for run in runs:
+            failures.extend(f"output warning: {warning}" for warning in run.output_warnings)
     return failures
 
 
-def cmd_validate_output(args: argparse.Namespace) -> int:
+def cmd_validate(args: argparse.Namespace) -> int:
     try:
         warnings = validate_output(args.event, _load_payload(args.file))
     except (ValueError, OSError) as exc:
@@ -879,11 +882,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"cc-hooks {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
-    validate = sub.add_parser("validate-output", help="check documented event-specific hook JSON")
-    validate.add_argument("event", choices=EVENTS)
+    validate = sub.add_parser("validate", help="check documented event-specific hook JSON")
     validate.add_argument("file", nargs="?", default="-", help="JSON response file, or - for stdin")
+    validate.add_argument("--event", required=True, choices=EVENTS, help="hook event name")
     validate.add_argument("--json", action="store_true", help="emit structured diagnostics")
-    validate.set_defaults(func=cmd_validate_output)
+    validate.set_defaults(func=cmd_validate)
 
     p_events = sub.add_parser("events", help="list the documented hook events")
     p_events.add_argument(
