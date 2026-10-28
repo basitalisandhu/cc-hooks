@@ -652,6 +652,9 @@ _RANK = {
     "none": 9,
 }
 
+# Every value ``Observed.kind`` can take, which is what a fixture's ``expect.decision`` may name.
+DECISION_KINDS = frozenset(_RANK)
+
 
 def combine(observed: Sequence[Observed], event: str) -> Observed:
     """The merged outcome when several hooks ran for one event.

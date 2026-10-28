@@ -1708,6 +1708,8 @@ def read_event(stream: IO[str] | None = None, *, strict: bool = True) -> Event:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise HookInputError(f"hook input is not valid JSON: {exc}") from exc
+    except RecursionError:
+        raise HookInputError("hook input is nested too deeply to read") from None
     return parse_event(data, strict=strict)
 
 

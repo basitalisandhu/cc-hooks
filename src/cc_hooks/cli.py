@@ -15,6 +15,7 @@ from typing import Any
 
 from . import __version__
 from .decide import (
+    DECISION_KINDS,
     EXIT_2_BLOCK_EVENTS,
     PERMISSION_DECISIONS,
     Observed,
@@ -41,11 +42,40 @@ RECORD_EVENTS = ("PreToolUse", "PostToolUse")
 
 
 def _load_payload(path: str) -> Any:
-    text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+    try:
+        text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise HookInputError(f"{path}: not UTF-8 text") from None
+    except IsADirectoryError:
+        raise HookInputError(f"{path}: is a directory, not a payload file") from None
+    except OSError as exc:
+        raise HookInputError(f"{path}: {exc.strerror or exc}") from None
+    return _parse_json(text, path)
+
+
+def _parse_json(text: str, where: str) -> Any:
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        raise HookInputError(f"{path}: not valid JSON: {exc}") from exc
+        raise HookInputError(f"{where}: not valid JSON: {exc}") from exc
+    except RecursionError:
+        raise HookInputError(f"{where}: JSON is nested too deeply to read") from None
+
+
+def _expect_problem(expect: dict[str, Any]) -> str | None:
+    """Why a fixture's ``expect`` object cannot be checked, or None when it is usable."""
+    decision = expect.get("decision")
+    if "decision" in expect and (not isinstance(decision, str) or decision not in DECISION_KINDS):
+        choices = ", ".join(sorted(DECISION_KINDS))
+        return f"expect.decision must be one of {choices}; got {decision!r}"
+    for key in ("reason_contains", "context_contains"):
+        if key in expect and not isinstance(expect[key], str):
+            return f"expect.{key} must be a string; got {expect[key]!r}"
+    for key in ("handlers", "exit_code"):
+        value = expect.get(key)
+        if key in expect and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
+            return f"expect.{key} must be a whole number of 0 or more; got {value!r}"
+    return None
 
 
 def _event_from_payload(payload: Any, *, warnings: list[str]) -> Event:
@@ -384,9 +414,15 @@ def _load_fixtures(paths: list[str]) -> tuple[list[Fixture], list[str]]:
             errors.append(f"{path}: no such file or directory")
     for path in files:
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            errors.append(f"{path}: {exc}")
+            data = _parse_json(path.read_text(encoding="utf-8"), str(path))
+        except UnicodeDecodeError:
+            errors.append(f"{path}: not UTF-8 text")
+            continue
+        except OSError as exc:
+            errors.append(f"{path}: {exc.strerror or exc}")
+            continue
+        except HookInputError as exc:
+            errors.append(str(exc))
             continue
         if not isinstance(data, dict):
             errors.append(f"{path}: fixture must be a JSON object")
@@ -395,6 +431,10 @@ def _load_fixtures(paths: list[str]) -> tuple[list[Fixture], list[str]]:
         expect = data.get("expect", {})
         if payload is None or not isinstance(expect, dict):
             errors.append(f"{path}: fixture needs an 'event' object and an 'expect' object")
+            continue
+        problem = _expect_problem(expect)
+        if problem:
+            errors.append(f"{path}: {problem}")
             continue
         warnings: list[str] = []
         try:
@@ -550,7 +590,8 @@ def cmd_test(args: argparse.Namespace) -> int:
         for index, run in enumerate(runs, 1):
             h = run.resolved.handler
             if args.no_run or (not run.executed):
-                print(f"      {index}. [{h.source.label}] would execute: {h.resolved_command}")
+                verb = "would execute" if h.type == "command" else "would call"
+                print(f"      {index}. [{h.source.label}] {verb}: {h.resolved_command}")
                 continue
             detail = f"exit {run.exit_code}" if run.exit_code is not None else "no exit"
             detail += f", {run.observed.kind}"
@@ -637,11 +678,17 @@ def cmd_record(args: argparse.Namespace) -> int:
         return _record_to(args)
     target = _settings_target(args)
     data: dict[str, Any] = {}
+    if args.uninstall and not target.is_file():
+        print(f"removed 0 record handler(s): {_display_path(target)} does not exist")
+        return 0
     if target.is_file():
         try:
-            data = json.loads(target.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            print(f"cc-hooks record: {target}: invalid JSON: {exc}", file=sys.stderr)
+            data = _parse_json(target.read_text(encoding="utf-8"), str(target))
+        except UnicodeDecodeError:
+            print(f"cc-hooks record: {target}: not UTF-8 text", file=sys.stderr)
+            return 2
+        except HookInputError as exc:
+            print(f"cc-hooks record: {exc}", file=sys.stderr)
             return 2
         if not isinstance(data, dict):
             print(f"cc-hooks record: {target}: top level must be an object", file=sys.stderr)
@@ -693,7 +740,8 @@ def cmd_record(args: argparse.Namespace) -> int:
             return 2
         present = any(
             isinstance(g, dict)
-            and any(_is_record_handler(h) for h in g.get("hooks", []) if isinstance(h, dict))
+            and isinstance(g.get("hooks"), list)
+            and any(_is_record_handler(h) for h in g["hooks"])
             for g in groups
         )
         if present:
@@ -781,7 +829,7 @@ def _convert_recordings(args: argparse.Namespace) -> int:
             continue
         try:
             fixture = json.loads(path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
+        except (ValueError, OSError, RecursionError):  # ValueError covers bad JSON and bad UTF-8
             continue
         payload = fixture.get("event") if isinstance(fixture, dict) else None
         if isinstance(payload, dict) and isinstance(payload.get("hook_event_name"), str):
@@ -791,7 +839,7 @@ def _convert_recordings(args: argparse.Namespace) -> int:
             continue
         try:
             entry = json.loads(line)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError):
             skipped += 1
             continue
         payload = entry.get("event") if isinstance(entry, dict) else None
@@ -944,7 +992,22 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except OSError as exc:  # an output path that cannot be written, a directory that cannot be made
+        target = f" {exc.filename}" if exc.filename else ""
+        print(f"cc-hooks: cannot read or write{target}: {exc.strerror or exc}", file=sys.stderr)
+        return 2
+    except UnicodeDecodeError as exc:
+        print(f"cc-hooks: a file is not UTF-8 text ({exc.reason})", file=sys.stderr)
+        return 2
+    except Exception as exc:  # last resort: one clear line instead of a traceback
+        print(
+            f"cc-hooks: internal error ({type(exc).__name__}: {exc}). Please report it at "
+            "https://github.com/basitalisandhu/cc-hooks/issues",
+            file=sys.stderr,
+        )
+        return 2
 
 
 if __name__ == "__main__":  # pragma: no cover

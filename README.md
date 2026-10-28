@@ -65,7 +65,7 @@ if isinstance(event, PreToolUse) and event.tool_name == "Bash":
 }
 ```
 
-Fed the `cat .env` payload, the hook prints the documented `PreToolUse` shape and exits 0:
+Fed the `cat .env` payload, the hook prints the documented `PreToolUse` shape and exits 0 (CI follows this demo on a fresh install with `scripts/check_readme_quickstart.py`):
 
 ```text
 $ echo '{"session_id":"demo","cwd":"/tmp","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"cat .env"}}' | python3 examples/minimal.py
@@ -88,18 +88,18 @@ Once the package is on PyPI the short forms work too: `pipx install cc-hooks`, `
 Container image: each release tag publishes `ghcr.io/basitalisandhu/cc-hooks` for linux/amd64 and linux/arm64, tagged with the version and `latest`. The image runs as uid 1000 with `/work` as the working directory, so mount the project there:
 
 ```bash
-docker run --rm -v "$PWD:/work" ghcr.io/basitalisandhu/cc-hooks:0.1.2 test examples/fixtures --settings examples/settings.json --cwd .
+docker run --rm -v "$PWD:/work" ghcr.io/basitalisandhu/cc-hooks:0.2.0 test examples/fixtures --settings examples/settings.json --cwd .
 ```
 
-In the container, `cc-hooks test` runs your hooks with the image's `python3`, which has `cc_hooks` installed. The image contains nothing else, so a hook that calls another program (`git`, `jq`, `node`) fails there; build an image of your own that adds it (`FROM ghcr.io/basitalisandhu/cc-hooks:0.1.2`) or run cc-hooks locally. Only the project settings you pass with `--settings` or find under `/work` are visible; your user settings in `~/.claude` are not.
+In the container, `cc-hooks test` runs your hooks with the image's `python3`, which has `cc_hooks` installed. The image contains nothing else, so a hook that calls another program (`git`, `jq`, `node`) fails there; build an image of your own that adds it (`FROM ghcr.io/basitalisandhu/cc-hooks:0.2.0`) or run cc-hooks locally. Only the project settings you pass with `--settings` or find under `/work` are visible; your user settings in `~/.claude` are not.
 
 The image is signed with a keyless cosign signature and has a build provenance attestation and an SPDX SBOM (attached to the GitHub Release). To verify:
 
 ```bash
-cosign verify ghcr.io/basitalisandhu/cc-hooks:0.1.2 \
+cosign verify ghcr.io/basitalisandhu/cc-hooks:0.2.0 \
   --certificate-identity-regexp '^https://github.com/basitalisandhu/cc-hooks/\.github/workflows/publish-github-packages\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/basitalisandhu/cc-hooks:0.1.2 --repo basitalisandhu/cc-hooks
+gh attestation verify oci://ghcr.io/basitalisandhu/cc-hooks:0.2.0 --repo basitalisandhu/cc-hooks
 ```
 
 pip, once published to PyPI:
@@ -215,7 +215,9 @@ summary: 5 passed, 0 failed
 
 The exit status is 1 when any fixture fails, so the command belongs in CI (this repository's workflow runs it). `--no-run` prints the resolved commands without executing anything; `--exec` removes `CC_HOOKS_DRY_RUN` for hooks whose side effects you want; `--report results.json` writes the table as JSON; `--timeout` caps each hook (30 seconds by default, under the handler's own timeout).
 
-Dry run is a contract between the runner and your hooks, not a sandbox: a hook that ignores the variable runs for real. Hooks written with this library can check `cc_hooks.dry_run()` and skip the side effect, as [examples/log_tool_use.py](examples/log_tool_use.py) does. `http`, `mcp_tool`, `prompt` and `agent` handlers are never executed; they are listed as "would call".
+Dry run is a contract between the runner and your hooks, not a sandbox: a hook that ignores the variable runs for real. Hooks written with this library can check `cc_hooks.dry_run()` and skip the side effect, as [examples/log_tool_use.py](examples/log_tool_use.py) does. `http`, `mcp_tool`, `prompt` and `agent` handlers are never executed; they are listed as "would call". For an `http` handler the line shows the request that would go out: `POST <url> with headers Authorization: <redacted>`, with header values and any password in the URL replaced, so the output is safe to paste into an issue. `explain` prints the same line.
+
+A fixture's `expect` is checked before anything runs: an unknown `decision`, a `handlers` or `exit_code` that is not a whole number, or a `reason_contains` that is not a string is reported as an error for that file, and the run exits 1.
 
 ### `cc-hooks record`
 
@@ -320,6 +322,23 @@ Because that is what Claude Code does: hook entries merge across settings levels
 
 **How do I target an MCP tool?**
 Tool events carry the tool as `mcp__<server>__<tool>` (plugin-bundled servers use `mcp__plugin_<plugin>_<server>__<tool>`), so the matcher is `mcp__memory__.*` for one server or `mcp__.*__write.*` for a verb across servers; the `.*` is required, since a matcher without it is an exact string. In the hook, `event.is_mcp_tool` is true and `event.mcp_server` holds the server's `name` and `source` on Claude Code v2.1.274 or later. `explain` shows whether your matcher landed on the exact or the regex path.
+
+## Troubleshooting
+
+Each command ends with exit 0, exit 1 (a fixture failed, or there was nothing to do) or exit 2 with one line that names the file and the problem. A Python traceback, or a line starting `cc-hooks: internal error`, is a bug: please [open an issue](https://github.com/basitalisandhu/cc-hooks/issues) with the command and, if you can, the payload.
+
+| Symptom | Cause and fix |
+|---|---|
+| `cc-hooks test` reports `error` for every hook, with `No module named 'cc_hooks'` | The `python3` your settings name does not have the library; pipx installed only the command. Run `python3 -m pip install cc-hooks` (or the `git+https` form) for that interpreter, or point `command` at a virtual environment's python. |
+| `explain` lists no handlers, or `not matched` handlers you expected to run | Without `--cwd`, settings are found from the payload's `cwd`, which in a recorded payload is the directory the session ran in. Pass `--cwd` for the project, or `--settings FILE`. A matcher such as `mcp__memory` without `.*` is an exact string; `explain` shows whether it took the exact or the regex path. |
+| `explain` or `test` prints `warning: <file>: invalid JSON at line N`, `not UTF-8 text` or `nested too deeply` | That settings file is skipped, as Claude Code skips a file it cannot parse, so its hooks and `disableAllHooks` do not apply. Fix the file; the warning gives the first error. |
+| `cc-hooks explain: <file>: not valid JSON` or `not UTF-8 text` | The payload file is not a JSON object in UTF-8. Recorded payloads are one per line in `recorded.jsonl`; convert them with `cc-hooks record --to DIR` instead of passing the `.jsonl` file. |
+| `<fixture>: expect.decision must be one of ...` | A typo in the fixture, for example `denied` for `deny`. The message lists the accepted values. |
+| `<fixture>: fixture needs an 'event' object and an 'expect' object` | The file is a bare payload with an `expect` that is not an object, or neither shape. A bare payload with no `expect` is also accepted; it runs, and there is nothing to compare. |
+| A hook works in Claude Code but times out under `cc-hooks test` | `--timeout` (30 seconds by default) caps each hook below its own timeout. Raise it, or make the hook skip slow work when `cc_hooks.dry_run()` is true. |
+| `cc-hooks: cannot read or write <path>` | An output path (`--report`, `--to`, `--file`) is in a directory that does not exist or is not writable. Create it first. |
+| `cc-hooks record --to` writes nothing and says `skipped N (duplicates N, ...)` | The payloads are already converted: identical `(event, tool, tool_input)` payloads, including ones in existing fixtures, are skipped. Use `--keep-duplicates` to keep them. |
+| The container cannot run a hook that calls `git`, `jq` or `node` | The image contains only Python and cc-hooks. Build an image of your own on top of it, or run cc-hooks locally. |
 
 ## Contributing
 

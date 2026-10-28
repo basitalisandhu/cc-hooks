@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -127,7 +128,11 @@ class Handler:
             argv = self.exec_argv
             return shlex.join(argv) if argv else (self.command or "")
         if self.type == "http":
-            return f"POST {self.raw.get('url', '')}"
+            line = f"POST {_redact_url(str(self.raw.get('url', '')))}"
+            headers = self.raw.get("headers")
+            if isinstance(headers, dict) and headers:
+                line += " with headers " + ", ".join(f"{name}: <redacted>" for name in headers)
+            return line
         if self.type == "mcp_tool":
             return f"{self.raw.get('server', '')} tool {self.raw.get('tool', '')}"
         if self.type in ("prompt", "agent"):
@@ -159,11 +164,27 @@ class Handler:
             self.command,
             self.args,
             self.if_rule,
-            self.raw.get("url"),
-            self.raw.get("server"),
-            self.raw.get("tool"),
-            self.raw.get("prompt"),
+            *(_hashable(self.raw.get(key)) for key in ("url", "server", "tool", "prompt")),
         )
+
+
+def _redact_url(url: str) -> str:
+    """The URL with any password in it replaced, so explain and test output is safe to share."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if parts.password is None:
+        return url
+    host = parts.netloc.rsplit("@", 1)[1]
+    return parts._replace(netloc=f"{parts.username}:<redacted>@{host}").geturl()
+
+
+def _hashable(value: Any) -> Any:
+    """A settings value as a set key; a JSON object or array (a malformed entry) becomes text."""
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    return json.dumps(value, sort_keys=True, default=str)
 
 
 @dataclass(frozen=True)
@@ -241,10 +262,14 @@ def load_json(path: Path) -> dict[str, Any]:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise SettingsError(f"{path}: {exc.strerror}") from exc
+    except UnicodeDecodeError:
+        raise SettingsError(f"{path}: not UTF-8 text") from None
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise SettingsError(f"{path}: invalid JSON at line {exc.lineno}: {exc.msg}") from exc
+    except RecursionError:
+        raise SettingsError(f"{path}: JSON is nested too deeply to read") from None
     if not isinstance(data, dict):
         raise SettingsError(f"{path}: top level must be a JSON object")
     return data
@@ -562,27 +587,26 @@ def matches(matcher: str | None, value: str | None, event: str | None = None) ->
 # --------------------------------------------------------------------------- `if` rules
 
 _IF_RULE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_\-*]*)\s*(?:\((.*)\))?\s*$", re.S)
-_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=\S*\s*")
+# All leading VAR=value assignments in one match: stripping them one re.sub at a time copied the
+# rest of the command each time, which was quadratic in the number of assignments.
+_ASSIGNMENTS = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s*)+")
 _SPLIT_SUBCOMMANDS = re.compile(r"\|\||&&|;|\||\n")
 _SUBSTITUTIONS = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 
 
-def _subcommands(command: str) -> list[str]:
+@functools.lru_cache(maxsize=256)
+def _subcommands(command: str) -> tuple[str, ...]:
+    """The simple commands in ``command``; cached because every handler's ``if`` rule asks again."""
     parts: list[str] = []
     for match in _SUBSTITUTIONS.finditer(command):
         inner = match.group(1) if match.group(1) is not None else match.group(2)
         if inner:
             parts.append(inner)
     for part in _SPLIT_SUBCOMMANDS.split(command):
-        part = part.strip()
-        while part:
-            stripped = _ASSIGNMENT.sub("", part, count=1)
-            if stripped == part:
-                break
-            part = stripped.strip()
+        part = _ASSIGNMENTS.sub("", part.strip(), count=1).strip()
         if part:
             parts.append(part)
-    return parts
+    return tuple(parts)
 
 
 def _bash_rule_matches(pattern: str, command: str) -> bool:
