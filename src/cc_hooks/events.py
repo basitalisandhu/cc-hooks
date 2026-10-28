@@ -27,6 +27,8 @@ from dataclasses import dataclass, field
 from dataclasses import fields as dataclass_fields
 from typing import IO, Any, ClassVar
 
+from . import _jsondepth
+
 DOCS_URL = "https://code.claude.com/docs/en/hooks"
 DOCS_GUIDE_URL = "https://code.claude.com/docs/en/hooks-guide"
 DOCS_FETCHED = "2026-10-03"
@@ -1705,7 +1707,7 @@ def read_event(stream: IO[str] | None = None, *, strict: bool = True) -> Event:
     if not text.strip():
         raise HookInputError("empty hook input")
     try:
-        data = json.loads(text)
+        data = _jsondepth.loads(text)
     except json.JSONDecodeError as exc:
         raise HookInputError(f"hook input is not valid JSON: {exc}") from exc
     except RecursionError:

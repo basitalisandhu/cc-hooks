@@ -7,10 +7,10 @@ Unknown extension fields are warnings, not proof the response will fail.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from . import _jsondepth
 from .decide import CONTINUE_IGNORED, PERMISSION_DECISIONS, SYSTEM_MESSAGE_IGNORED
 from .events import EVENTS
 
@@ -174,7 +174,7 @@ def stdout_warnings(event: str, stdout: str, exit_code: int) -> list[str]:
     if not (text.startswith("{") and text.endswith("}")):
         return []
     try:
-        value = json.loads(text)
-    except ValueError:
+        value = _jsondepth.loads(text)
+    except (ValueError, RecursionError):
         return ["$: output looks like JSON but cannot be parsed"] if exit_code == 0 else []
     return validate_output(event, value)

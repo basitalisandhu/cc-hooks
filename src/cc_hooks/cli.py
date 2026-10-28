@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from . import __version__
+from . import __version__, _jsondepth
 from .decide import (
     DECISION_KINDS,
     EXIT_2_BLOCK_EVENTS,
@@ -56,7 +56,7 @@ def _load_payload(path: str) -> Any:
 
 def _parse_json(text: str, where: str) -> Any:
     try:
-        return json.loads(text)
+        return _jsondepth.loads(text)
     except json.JSONDecodeError as exc:
         raise HookInputError(f"{where}: not valid JSON: {exc}") from exc
     except RecursionError:
@@ -793,8 +793,8 @@ def _record_append(path_text: str) -> int:
         text = sys.stdin.read()
         now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
         try:
-            entry: dict[str, Any] = {"recorded_at": now, "event": json.loads(text)}
-        except json.JSONDecodeError:
+            entry: dict[str, Any] = {"recorded_at": now, "event": _jsondepth.loads(text)}
+        except (json.JSONDecodeError, RecursionError):
             entry = {"recorded_at": now, "raw": text}
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
@@ -855,7 +855,7 @@ def _convert_recordings(args: argparse.Namespace) -> int:
         if args.keep_duplicates:
             continue
         try:
-            fixture = json.loads(path.read_text(encoding="utf-8"))
+            fixture = _jsondepth.loads(path.read_text(encoding="utf-8"))
         except (ValueError, OSError, RecursionError):  # ValueError covers bad JSON and bad UTF-8
             continue
         payload = fixture.get("event") if isinstance(fixture, dict) else None
@@ -865,7 +865,7 @@ def _convert_recordings(args: argparse.Namespace) -> int:
         if not line.strip():
             continue
         try:
-            entry = json.loads(line)
+            entry = _jsondepth.loads(line)
         except (json.JSONDecodeError, RecursionError):
             skipped += 1
             continue

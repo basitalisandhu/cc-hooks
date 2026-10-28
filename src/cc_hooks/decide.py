@@ -17,6 +17,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import IO, Any, NoReturn
 
+from . import _jsondepth
 from .events import EVENTS
 
 __all__ = [
@@ -556,8 +557,8 @@ def observe(event: str, stdout: str, exit_code: int, stderr: str = "") -> Observ
     parse_error: str | None = None
     if text.startswith("{") and text.endswith("}"):
         try:
-            decoded = json.loads(text)
-        except ValueError as exc:
+            decoded = _jsondepth.loads(text)
+        except (ValueError, RecursionError) as exc:
             parse_error = str(exc)
         else:
             if isinstance(decoded, dict):

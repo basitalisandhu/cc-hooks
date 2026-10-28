@@ -6,9 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-29
+
 ### Added
 
 - `cc-hooks validate FILE --event NAME` checks event-specific output fields, placement, types, enums and documented ignored combinations. Replay (`cc-hooks test`) prints the same advisory warnings, includes them in JSON reports without changing verdicts, and counts them as failures when `expect.strict_output` is true (#6).
+
+### Fixed
+
+- Deeply nested JSON (hook input, payload and fixture files, settings, recorded lines, hook output) is refused with the same "nested too deeply" error on every supported Python. Python 3.14 no longer raises `RecursionError` from `json.loads` at the old depth, so the readers now check nesting first (limit 200 levels) instead of relying on it.
+- CI tests Python 3.11 to 3.14.
 
 ## [0.2.0] - 2026-10-28
 
@@ -65,7 +72,9 @@ All notable changes to this project are documented here. The format follows
 
 - Renamed the umbrella project from Hisar to Masoon; links, names and identifiers updated.
 
-[Unreleased]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/basitalisandhu/cc-hooks/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/basitalisandhu/cc-hooks/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/basitalisandhu/cc-hooks/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/basitalisandhu/cc-hooks/releases/tag/v0.1.0

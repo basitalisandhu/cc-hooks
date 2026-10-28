@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from . import _jsondepth
 from .events import EVENTS, TOOL_EVENTS, Event
 
 __all__ = [
@@ -265,7 +266,7 @@ def load_json(path: Path) -> dict[str, Any]:
     except UnicodeDecodeError:
         raise SettingsError(f"{path}: not UTF-8 text") from None
     try:
-        data = json.loads(text)
+        data = _jsondepth.loads(text)
     except json.JSONDecodeError as exc:
         raise SettingsError(f"{path}: invalid JSON at line {exc.lineno}: {exc.msg}") from exc
     except RecursionError:
