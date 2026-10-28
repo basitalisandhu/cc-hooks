@@ -230,6 +230,22 @@ def test_http_handler_lines_show_url_and_redacted_headers():
     assert plain.resolved_command == "POST https://h/x"
 
 
+def test_http_handler_urls_redact_every_query_value():
+    source = Source("project", Path("/p/.claude/settings.json"))
+
+    def line(url: str) -> str:
+        return Handler("Stop", None, "http", source, raw={"url": url}).resolved_command
+
+    assert (
+        line("https://h/x?token=abc&team=t") == "POST https://h/x?token=<redacted>&team=<redacted>"
+    )
+    assert line("https://h/x?a=1&&b=2") == "POST https://h/x?a=<redacted>&&b=<redacted>"
+    assert line("https://h/x?flag") == "POST https://h/x?flag=<redacted>"
+    assert line("https://h/x") == "POST https://h/x"
+    assert line("http://[::1/x?token=abc") == "POST http://[::1/x?token=abc"
+    assert "abc" not in line("https://u:pw@h/x?token=abc")
+
+
 def test_cc_hooks_test_lists_http_handlers_as_would_call(files, capsys):
     hook = {
         "type": "http",

@@ -174,10 +174,17 @@ def _redact_url(url: str) -> str:
         parts = urlsplit(url)
     except ValueError:
         return url
-    if parts.password is None:
+    if parts.password is None and not parts.query:
         return url
-    host = parts.netloc.rsplit("@", 1)[1]
-    return parts._replace(netloc=f"{parts.username}:<redacted>@{host}").geturl()
+    if parts.password is not None:
+        host = parts.netloc.rsplit("@", 1)[1]
+        parts = parts._replace(netloc=f"{parts.username}:<redacted>@{host}")
+    if parts.query:
+        # Keep each parameter name and their order; drop only the values.
+        pairs = parts.query.split("&")
+        query = "&".join(f"{pair.split('=', 1)[0]}=<redacted>" if pair else "" for pair in pairs)
+        parts = parts._replace(query=query)
+    return parts.geturl()
 
 
 def _hashable(value: Any) -> Any:
