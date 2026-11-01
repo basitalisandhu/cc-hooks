@@ -178,7 +178,7 @@ exit code 2: blocks. Blocks the tool call
 docs: https://code.claude.com/docs/en/hooks#pretooluse
 ```
 
-Without `--settings` it discovers every source for `--cwd` (or, failing that, for the payload's `cwd`) and lists each one, marking the files it did not find. Handlers that exist for the event but did not match are listed under `not matched` with their matcher, so a `mcp__memory` matcher that never fires (the docs: without `.*` it is an exact string) is visible. `--json` gives the same information as a structure.
+Without `--settings` it discovers every source for `--cwd` (or, failing that, for the payload's `cwd`) and lists each one, marking the files it did not find. Handlers that exist for the event but did not match are listed under `not matched` with their matcher, so a `mcp__memory` matcher that never fires (the docs: without `.*` it is an exact string) is visible. `--json` gives the same information as a structure, including ordered `header_names` for each handler without exposing header values.
 
 Matchers follow the reference's table: `*`, empty or omitted matches everything; a value made only of letters, digits, `_`, `-`, spaces, `,` and `|` is an exact string or a `|` or `,` separated list; anything else is an unanchored regular expression (`FileChanged` and `StopFailure` use the narrower set, where a hyphen keeps the matcher on the regex path). The `if` field is evaluated best-effort the way the docs' Bash table describes, including `$()` and backticks and leading `VAR=value` assignments; when it cannot be evaluated the handler is listed as running, which is what Claude Code does.
 

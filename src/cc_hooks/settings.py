@@ -142,6 +142,15 @@ class Handler:
         return ""
 
     @property
+    def header_names(self) -> list[str]:
+        """Ordered header names for http handlers, empty list otherwise."""
+        if self.type == "http":
+            headers = self.raw.get("headers")
+            if isinstance(headers, dict):
+                return [str(k) for k in headers]
+        return []
+
+    @property
     def effective_timeout(self) -> float:
         """Seconds before Claude Code cancels the hook, applying the documented defaults."""
         if self.timeout is not None:

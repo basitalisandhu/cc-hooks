@@ -317,6 +317,7 @@ def cmd_explain(args: argparse.Namespace) -> int:
                             "matcher": r.handler.matcher,
                             "type": r.handler.type,
                             "command": r.handler.resolved_command,
+                            "header_names": r.handler.header_names,
                             "timeout": r.handler.effective_timeout,
                             "async": r.handler.is_async,
                             "matched_by": r.matched_by,
@@ -328,6 +329,7 @@ def cmd_explain(args: argparse.Namespace) -> int:
                             "source": h.source.label,
                             "matcher": h.matcher,
                             "command": h.resolved_command,
+                            "header_names": h.header_names,
                         }
                         for h in skipped
                     ],

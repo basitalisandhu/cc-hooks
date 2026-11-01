@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `cc-hooks explain --json` lists `header_names` for each handler under `handlers` and `not_matched`, giving the declaration order of headers for `http` handlers without revealing header values (#24).
+
 ## [0.2.1] - 2026-10-29
 
 ### Added

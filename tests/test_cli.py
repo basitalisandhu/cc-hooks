@@ -82,6 +82,75 @@ def test_explain_json_and_non_command_handlers(tree: Tree, tmp_path: Path, capsy
     assert any(s["kind"] == "plugin:demo@local" for s in data["sources"])
 
 
+def test_explain_json_http_header_names(tmp_path: Path, capsys):
+    settings_path = tmp_path / "settings.json"
+    write_json(
+        settings_path,
+        {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "http",
+                                "url": "https://example.com/api/webhook",
+                                "headers": {
+                                    "Authorization": "Bearer super-secret-token",
+                                    "X-Api-Key": "my-private-key",
+                                },
+                            },
+                            {
+                                "type": "command",
+                                "command": "python3 script.py",
+                            },
+                        ],
+                    },
+                    {
+                        "matcher": "Edit",
+                        "hooks": [
+                            {
+                                "type": "http",
+                                "url": "https://example.com/unmatched",
+                                "headers": {
+                                    "X-Unmatched-Secret": "top-secret-val",
+                                },
+                            }
+                        ],
+                    },
+                ]
+            }
+        },
+    )
+    payload = write_event(tmp_path / "event.json", name="PreToolUse", tool_name="Bash")
+    code, out = run(
+        capsys,
+        "explain",
+        str(payload),
+        "--settings",
+        str(settings_path),
+        "--cwd",
+        str(tmp_path),
+        "--json",
+    )
+    assert code == 0, out
+    data = json.loads(out)
+    handlers = data["handlers"]
+    assert len(handlers) == 2
+    assert handlers[0]["type"] == "http"
+    assert handlers[0]["header_names"] == ["Authorization", "X-Api-Key"]
+    assert handlers[1]["type"] == "command"
+    assert handlers[1]["header_names"] == []
+
+    not_matched = data["not_matched"]
+    assert len(not_matched) == 1
+    assert not_matched[0]["header_names"] == ["X-Unmatched-Secret"]
+
+    assert "super-secret-token" not in out
+    assert "my-private-key" not in out
+    assert "top-secret-val" not in out
+
+
 def test_explain_reads_stdin_and_rejects_bad_input(tmp_path: Path, capsys, monkeypatch):
     bad = tmp_path / "bad.json"
     bad.write_text("{nope", encoding="utf-8")
